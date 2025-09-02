@@ -16,6 +16,7 @@ classifiers = [
     
 ]
 dependencies = [
+    "astropy>=6.1.7",
     "ipython",
     "jupyterlab",
     "loguru",
@@ -24,6 +25,8 @@ dependencies = [
     "numpy",
     "pandas",
     "pip",
+    "pqdm>=0.2.0",
+    "pyarrow>=21.0.0",
     "python-dotenv",
     "ruff",
     "scikit-learn",

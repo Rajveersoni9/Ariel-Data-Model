@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,16 +12,49 @@ class Config:
     """Configuration for the project paths and settings."""
 
     PROJ_ROOT = Path(__file__).resolve().parents[1]
-    DATA_DIR = PROJ_ROOT / "data"
-    RAW_DATA_DIR = DATA_DIR / "raw"
-    INTERIM_DATA_DIR = DATA_DIR / "interim"
-    PROCESSED_DATA_DIR = DATA_DIR / "processed"
-    EXTERNAL_DATA_DIR = DATA_DIR / "external"
+    ROOT_DATA_DIR = PROJ_ROOT / "data"
+    RAW_DATA_DIR = ROOT_DATA_DIR / "raw"
+    INTERIM_DATA_DIR = ROOT_DATA_DIR / "interim"
+    PROCESSED_DATA_DIR = ROOT_DATA_DIR / "processed"
+    EXTERNAL_DATA_DIR = ROOT_DATA_DIR / "external"
 
     MODELS_DIR = PROJ_ROOT / "models"
 
     REPORTS_DIR = PROJ_ROOT / "reports"
     FIGURES_DIR = REPORTS_DIR / "figures"
+
+    DATA_PATH = RAW_DATA_DIR
+    DATASET = "train"
+
+    AIRS_LOWER_CHANNEL = 39
+    AIRS_UPPER_CHANNEL = 321
+
+    SENSOR_CONFIG = {
+        "AIRS-CH0": {
+            "raw_shape": [11250, 32, 356],
+            "calibrated_shape": [1, 32, AIRS_UPPER_CHANNEL - AIRS_LOWER_CHANNEL],
+            "linear_corr_shape": (6, 32, 356),
+            "dt_pattern": (0.1, 4.5),
+            "binning": 30,
+        },
+        "FGS1": {
+            "raw_shape": [135000, 32, 32],
+            "calibrated_shape": [1, 32, 32],
+            "linear_corr_shape": (6, 32, 32),
+            "dt_pattern": (0.1, 0.1),
+            "binning": 30 * 12,
+        },
+    }
+
+    PREPROCESSING_N_JOBS = 4
+
+    PLANET_IDS = []
+
+    def __init__(self):
+        # self.planet_ids = pd.read_csv(
+        #     f"{self.DATA_PATH}/{self.DATASET}_star_info.csv", index_col="planet_id"
+        # ).index.astype(int)
+        self.PLANET_IDS = os.listdir(Path(self.DATA_PATH) / self.DATASET)
 
 
 # If tqdm is installed, configure loguru with tqdm.write

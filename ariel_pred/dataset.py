@@ -1,29 +1,143 @@
-from pathlib import Path
+import itertools
 
-from loguru import logger
-from tqdm import tqdm
-import typer
+from astropy.stats import sigma_clip
+import numpy as np
+import pandas as pd
+from pqdm.threads import pqdm
 
-from ariel_pred.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
-
-app = typer.Typer()
-
-
-@app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = RAW_DATA_DIR / "dataset.csv",
-    output_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    # ----------------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Processing dataset...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Processing dataset complete.")
-    # -----------------------------------------
+from ariel_pred.config import Config
 
 
-if __name__ == "__main__":
-    app()
+class SignalProcessor:
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.adc_info = pd.read_csv(f"{self.cfg.DATA_PATH}/adc_info.csv")
+        self.planet_ids = cfg.PLANET_IDS
+
+    def _apply_linear_corr(self, linear_corr, signal):
+        linear_corr_flipped = np.flip(linear_corr, axis=0)
+        corrected_signal = signal.copy()
+
+        for x, y in itertools.product(range(signal.shape[1]), range(signal.shape[2])):
+            poly = np.poly1d(linear_corr_flipped[:, x, y])
+            corrected_signal[:, x, y] = poly(corrected_signal[:, x, y])
+
+        return corrected_signal
+
+    def _calibrate_single_signal(self, planet_id, sensor):
+        sensor_cfg = self.cfg.SENSOR_CONFIG[sensor]
+
+        signal = pd.read_parquet(
+            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_signal_0.parquet"
+        ).to_numpy()
+        dark = pd.read_parquet(
+            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/dark.parquet"
+        ).to_numpy()
+        dead = pd.read_parquet(
+            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/dead.parquet"
+        ).to_numpy()
+        flat = pd.read_parquet(
+            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/flat.parquet"
+        ).to_numpy()
+        linear_corr = (
+            pd.read_parquet(
+                f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/linear_corr.parquet"
+            )
+            .values.astype(np.float64)
+            .reshape(sensor_cfg["linear_corr_shape"])
+        )
+
+        signal = signal.reshape(sensor_cfg["raw_shape"])
+        gain = self.adc_info[f"{sensor}_adc_gain"].iloc[0]
+        offset = self.adc_info[f"{sensor}_adc_offset"].iloc[0]
+        signal = signal / gain + offset
+
+        hot = sigma_clip(dark, sigma=5, maxiters=5).mask
+
+        if sensor == "AIRS-CH0":
+            signal = signal[:, :, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
+            linear_corr = linear_corr[
+                :, :, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL
+            ]
+            dark = dark[:, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
+            dead = dead[:, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
+            flat = flat[:, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
+            hot = hot[:, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
+
+        base_dt, increment = sensor_cfg["dt_pattern"]
+        dt = np.ones(len(signal)) * base_dt
+        dt[1::2] += increment
+
+        signal = signal.clip(0)
+        signal = self._apply_linear_corr(linear_corr, signal)
+        signal -= dark * dt[:, np.newaxis, np.newaxis]
+
+        flat = flat.reshape(sensor_cfg["calibrated_shape"])
+        flat[dead.reshape(sensor_cfg["calibrated_shape"])] = np.nan
+        flat[hot.reshape(sensor_cfg["calibrated_shape"])] = np.nan
+
+        signal = signal / flat
+
+        return signal
+
+    def _preprocess_calibrated_signal(self, calibrated_signal, sensor):
+        sensor_cfg = self.cfg.SENSOR_CONFIG[sensor]
+        binning = sensor_cfg["binning"]
+
+        if sensor == "AIRS-CH0":
+            signal_roi = calibrated_signal[:, 10:22, :]
+        elif sensor == "FGS1":
+            signal_roi = calibrated_signal[:, 10:22, 10:22]
+            signal_roi = signal_roi.reshape(signal_roi.shape[0], -1)
+
+        mean_signal = np.nanmean(signal_roi, axis=1)
+
+        cds_signal = mean_signal[1::2] - mean_signal[0::2]
+
+        n_bins = cds_signal.shape[0] // binning
+        binned = np.array(
+            [cds_signal[j * binning : (j + 1) * binning].mean(axis=0) for j in range(n_bins)]
+        )
+
+        if sensor == "FGS1":
+            binned = binned.reshape((binned.shape[0], 1))
+
+        return binned
+
+    def _process_planet_sensor(self, args):
+        planet_id, sensor = args["planet_id"], args["sensor"]
+        calibrated = self._calibrate_single_signal(planet_id, sensor)
+        preprocessed = self._preprocess_calibrated_signal(calibrated, sensor)
+        return preprocessed
+
+    def process_all_data(self) -> np.ndarray:
+        """
+        Process and preprocess signals for all planets and sensors.
+
+        Returns data of shape (num_planets, num_time_bins, total_channels)
+
+        Currently, num_time_bins is 187 (notice the binning) and total channels is 283 with the first being FGS1 and the rest being AIRS-CH0.
+
+        Returns:
+            np.ndarray: Preprocessed signals with shape (num_planets, num_time_bins, total_channels)
+        """
+
+        # NOTE: The order of sensors is important here for the shape of the output array.
+        # NOTE: Currently, process only the first observation (index 0) of each planet.
+        args_fgs1 = [dict(planet_id=planet_id, sensor="FGS1") for planet_id in self.planet_ids]
+
+        preprocessed_fgs1 = pqdm(
+            args_fgs1, self._process_planet_sensor, n_jobs=self.cfg.PREPROCESSING_N_JOBS
+        )
+
+        args_airs_ch0 = [
+            dict(planet_id=planet_id, sensor="AIRS-CH0") for planet_id in self.planet_ids
+        ]
+        preprocessed_airs_ch0 = pqdm(
+            args_airs_ch0, self._process_planet_sensor, n_jobs=self.cfg.PREPROCESSING_N_JOBS
+        )
+
+        preprocessed_signal = np.concatenate(
+            [np.stack(preprocessed_fgs1), np.stack(preprocessed_airs_ch0)], axis=2
+        )
+        return preprocessed_signal
