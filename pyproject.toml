@@ -1,0 +1,47 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "ariel_pred"
+version = "0.0.1"
+description = "NeurIPS - Ariel Data Challenge 2025"
+authors = [
+  { name = "Ibrahim Habib" },
+]
+
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    
+]
+dependencies = [
+    "ipython",
+    "jupyterlab",
+    "loguru",
+    "matplotlib",
+    "notebook",
+    "numpy",
+    "pandas",
+    "pip",
+    "python-dotenv",
+    "ruff",
+    "scikit-learn",
+    "tqdm",
+    "typer",
+]
+requires-python = "~=3.10.0"
+
+
+[tool.ruff]
+line-length = 99
+src = ["ariel_pred"]
+include = ["pyproject.toml", "ariel_pred/**/*.py"]
+
+[tool.ruff.lint]
+extend-select = ["I"]  # Add import sorting
+
+[tool.ruff.lint.isort]
+known-first-party = ["ariel_pred"]
+force-sort-within-sections = true
+
