@@ -1,4 +1,5 @@
 import itertools
+from typing import Literal
 
 from astropy.stats import sigma_clip
 import numpy as np
@@ -8,11 +9,11 @@ from pqdm.threads import pqdm
 from ariel_pred.config import Config
 
 
+# Based on Vitaly Kudelya's Baseline
 class SignalProcessor:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.adc_info = pd.read_csv(f"{self.cfg.DATA_PATH}/adc_info.csv")
-        self.planet_ids = cfg.PLANET_IDS
 
     def _apply_linear_corr(self, linear_corr, signal):
         linear_corr_flipped = np.flip(linear_corr, axis=0)
@@ -24,24 +25,24 @@ class SignalProcessor:
 
         return corrected_signal
 
-    def _calibrate_single_signal(self, planet_id, sensor):
+    def _calibrate_single_signal(self, planet_id, dataset, sensor):
         sensor_cfg = self.cfg.SENSOR_CONFIG[sensor]
 
         signal = pd.read_parquet(
-            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_signal_0.parquet"
+            f"{self.cfg.DATA_PATH}/{dataset}/{planet_id}/{sensor}_signal_0.parquet"
         ).to_numpy()
         dark = pd.read_parquet(
-            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/dark.parquet"
+            f"{self.cfg.DATA_PATH}/{dataset}/{planet_id}/{sensor}_calibration_0/dark.parquet"
         ).to_numpy()
         dead = pd.read_parquet(
-            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/dead.parquet"
+            f"{self.cfg.DATA_PATH}/{dataset}/{planet_id}/{sensor}_calibration_0/dead.parquet"
         ).to_numpy()
         flat = pd.read_parquet(
-            f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/flat.parquet"
+            f"{self.cfg.DATA_PATH}/{dataset}/{planet_id}/{sensor}_calibration_0/flat.parquet"
         ).to_numpy()
         linear_corr = (
             pd.read_parquet(
-                f"{self.cfg.DATA_PATH}/{self.cfg.DATASET}/{planet_id}/{sensor}_calibration_0/linear_corr.parquet"
+                f"{self.cfg.DATA_PATH}/{dataset}/{planet_id}/{sensor}_calibration_0/linear_corr.parquet"
             )
             .values.astype(np.float64)
             .reshape(sensor_cfg["linear_corr_shape"])
@@ -52,7 +53,7 @@ class SignalProcessor:
         offset = self.adc_info[f"{sensor}_adc_offset"].iloc[0]
         signal = signal / gain + offset
 
-        hot = sigma_clip(dark, sigma=5, maxiters=5).mask
+        hot = sigma_clip(dark, sigma=5, maxiters=5).mask  # type: ignore
 
         if sensor == "AIRS-CH0":
             signal = signal[:, :, self.cfg.AIRS_LOWER_CHANNEL : self.cfg.AIRS_UPPER_CHANNEL]
@@ -90,7 +91,7 @@ class SignalProcessor:
             signal_roi = calibrated_signal[:, 10:22, 10:22]
             signal_roi = signal_roi.reshape(signal_roi.shape[0], -1)
 
-        mean_signal = np.nanmean(signal_roi, axis=1)
+        mean_signal = np.nanmean(signal_roi, axis=1)  # type: ignore
 
         cds_signal = mean_signal[1::2] - mean_signal[0::2]
 
@@ -105,12 +106,12 @@ class SignalProcessor:
         return binned
 
     def _process_planet_sensor(self, args):
-        planet_id, sensor = args["planet_id"], args["sensor"]
-        calibrated = self._calibrate_single_signal(planet_id, sensor)
+        planet_id, sensor, dataset = args["planet_id"], args["sensor"], args["dataset"]
+        calibrated = self._calibrate_single_signal(planet_id, dataset, sensor)
         preprocessed = self._preprocess_calibrated_signal(calibrated, sensor)
         return preprocessed
 
-    def process_all_data(self) -> np.ndarray:
+    def process_all_data(self, dataset: Literal["train", "test"]) -> np.ndarray:
         """
         Process and preprocess signals for all planets and sensors.
 
@@ -124,14 +125,21 @@ class SignalProcessor:
 
         # NOTE: The order of sensors is important here for the shape of the output array.
         # NOTE: Currently, process only the first observation (index 0) of each planet.
-        args_fgs1 = [dict(planet_id=planet_id, sensor="FGS1") for planet_id in self.planet_ids]
+        planet_ids = pd.read_csv(f"{self.cfg.DATA_PATH}/{dataset}_star_info.csv")[
+            "planet_id"
+        ].values.astype(int)
+
+        args_fgs1 = [
+            dict(planet_id=planet_id, dataset=dataset, sensor="FGS1") for planet_id in planet_ids
+        ]
 
         preprocessed_fgs1 = pqdm(
             args_fgs1, self._process_planet_sensor, n_jobs=self.cfg.PREPROCESSING_N_JOBS
         )
 
         args_airs_ch0 = [
-            dict(planet_id=planet_id, sensor="AIRS-CH0") for planet_id in self.planet_ids
+            dict(planet_id=planet_id, dataset=dataset, sensor="AIRS-CH0")
+            for planet_id in planet_ids
         ]
         preprocessed_airs_ch0 = pqdm(
             args_airs_ch0, self._process_planet_sensor, n_jobs=self.cfg.PREPROCESSING_N_JOBS

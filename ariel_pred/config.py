@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,8 +22,7 @@ class Config:
     REPORTS_DIR = PROJ_ROOT / "reports"
     FIGURES_DIR = REPORTS_DIR / "figures"
 
-    DATA_PATH = RAW_DATA_DIR
-    DATASET = "train"
+    DATA_PATH = PROJ_ROOT / "data" / "raw_subset"
 
     AIRS_LOWER_CHANNEL = 39
     AIRS_UPPER_CHANNEL = 321
@@ -49,12 +47,6 @@ class Config:
     PREPROCESSING_N_JOBS = 4
 
     PLANET_IDS = []
-
-    def __init__(self):
-        # self.planet_ids = pd.read_csv(
-        #     f"{self.DATA_PATH}/{self.DATASET}_star_info.csv", index_col="planet_id"
-        # ).index.astype(int)
-        self.PLANET_IDS = os.listdir(Path(self.DATA_PATH) / self.DATASET)
 
 
 # If tqdm is installed, configure loguru with tqdm.write
