@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 from pqdm.threads import pqdm
 
-from ariel_pred.config import Config
+from ariel_pred.config import CalibrationConfig
 
 
 # Based on Vitaly Kudelya's Baseline
 class DataLoaderAndCalibrator:
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: CalibrationConfig):
         self.cfg = cfg
         self.adc_info = pd.read_csv(f"{self.cfg.DATA_PATH}/adc_info.csv")
 
