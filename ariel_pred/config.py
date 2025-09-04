@@ -36,6 +36,12 @@ class CalibrationConfig:
         airs_upper_channel: int = 356,
         preprocessing_n_jobs: int = 4,
     ):
+        assert data_path.exists(), f"Data path {data_path} does not exist."
+        assert 0 <= airs_lower_channel < airs_upper_channel <= 356, (
+            "AIRS channel range must be between 0 and 356 and lower channel must be less than upper channel."
+        )
+        assert binning > 0, "Binning must be a positive integer."
+        assert preprocessing_n_jobs > 0, "Number of preprocessing jobs must be a positive integer."
         self.DATA_PATH = data_path
         self.SENSOR_CONFIG = {
             "AIRS-CH0": {
