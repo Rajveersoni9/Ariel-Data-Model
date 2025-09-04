@@ -10,7 +10,7 @@ from ariel_pred.config import Config
 
 
 # Based on Vitaly Kudelya's Baseline
-class SignalProcessor:
+class DataLoaderAndCalibrator:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.adc_info = pd.read_csv(f"{self.cfg.DATA_PATH}/adc_info.csv")

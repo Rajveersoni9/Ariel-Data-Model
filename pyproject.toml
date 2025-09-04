@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "astropy>=6.1.7",
     "ipython",
+    "ipywidgets>=8.1.7",
     "jupyterlab",
     "loguru",
     "matplotlib",
