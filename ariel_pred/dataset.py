@@ -1,4 +1,5 @@
 import itertools
+from pathlib import Path
 from typing import Literal
 
 from astropy.stats import sigma_clip
@@ -149,3 +150,13 @@ class DataLoaderAndCalibrator:
             [np.stack(preprocessed_fgs1), np.stack(preprocessed_airs_ch0)], axis=2
         )
         return preprocessed_signal
+
+
+class LabelsLoader:
+    def __init__(self, base_data_path: str):
+        self.base_data_path = Path(base_data_path)
+
+    def load_labels(self) -> np.ndarray:
+        labels_df = pd.read_csv(self.base_data_path / "train.csv")
+        labels = labels_df.drop(columns=["planet_id"]).to_numpy()
+        return labels
