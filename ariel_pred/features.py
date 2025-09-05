@@ -1,29 +1,212 @@
-from pathlib import Path
+from functools import partial
 
-from loguru import logger
+import numpy as np
+from scipy.optimize import minimize_scalar
+from scipy.signal import savgol_filter
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 from tqdm import tqdm
-import typer
 
-from ariel_pred.config import PROCESSED_DATA_DIR
-
-app = typer.Typer()
+from ariel_pred.transit import WindowBasedPhaseDetector
 
 
-@app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    output_path: Path = PROCESSED_DATA_DIR / "features.csv",
-    # -----------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Generating features from dataset...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Features generation complete.")
-    # -----------------------------------------
+class SignalPoly:
+    def __init__(self, deg):
+        self.deg = deg
+        self.poly_features = PolynomialFeatures(degree=deg, include_bias=True)
+        self.model = LinearRegression()
+
+    def fit(self, x, y):
+        X_poly = self.poly_features.fit_transform(np.array(x).reshape(-1, 1))
+        self.model.fit(X_poly, y)
+
+    def predict(self, x):
+        X_poly = self.poly_features.transform(np.array(x).reshape(-1, 1))
+        return self.model.predict(X_poly)
 
 
-if __name__ == "__main__":
-    app()
+class SergeiOldFeaturesExtractor:
+    def __init__(
+        self, phase_detector: WindowBasedPhaseDetector, sg_window: int = 300, sg_poly: int = 3
+    ):
+        self.sg_window = sg_window
+        self.sg_poly = sg_poly
+        self.phase_detector = phase_detector
+
+    def _smooth_data(self, signal: np.ndarray) -> np.ndarray:
+        return savgol_filter(signal, self.sg_window, self.sg_poly)
+
+    def _f_coef(self, px, y, s):
+        q = np.abs(px - y * s).mean()
+        return q
+
+    def _try_s_alpenglow2(self, px, y, y2, y3, s):
+        q = np.abs(px - y * (y2 + y3 * s)).mean()
+        return q
+
+    def _calibrate_train_alpenglow(
+        self,
+        signal: np.ndarray,
+        p0: int,
+        p1: int,
+        p2: int,
+        p3: int,
+        max_deg: int = 6,
+        min_deg: int = 1,
+    ):
+        best_deg, best_score, best_s, best_poly = 1, 1e12, 0, None
+        out = np.concatenate((np.arange(p0), np.arange(p3, signal.shape[0])))
+        x, y = out, signal[out]
+        x2 = np.arange(p1, p2)
+        y2 = signal[p1:p2]
+
+        x = np.concatenate((x, x2))
+        y = np.concatenate((y, y2))
+        y2 = np.ones_like(y)
+        y3 = np.zeros_like(y)
+        y3[out.shape[0] :] = 1.0
+        for deg in range(min_deg, max_deg + 1):
+            p = SignalPoly(deg)
+            p.fit(x[: len(out)], y[: len(out)])
+            px = p.predict(x)
+
+            f = partial(self._try_s_alpenglow2, px, y, y2, y3)
+            r = minimize_scalar(f)
+            s = r.x  # type: ignore
+            q = r.fun  # type: ignore
+            if q < best_score:
+                best_score = q
+                best_poly = p
+                best_s = s
+                best_deg = deg
+
+        return best_s, best_deg, best_poly, best_score
+
+    def extract_features(self, data: np.ndarray) -> np.ndarray:
+        assert len(data.shape) == 3, (
+            "Expecting 3D array: (num_planets, num_time_steps, num_wavelengths)"
+        )
+        assert data.shape[2] == 283, "Expecting the AIRS channels to be cut"
+        feats = np.zeros((len(data), 283, 9))
+        max_degs = np.zeros(len(data)).astype(int)
+        for i in tqdm(range(len(data))):
+            train = data[i]
+
+            p0, p1, p2, p3 = 0, 0, 0, 0
+
+            ranges = [(0, 283)]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                p0, p1, p2, p3 = self.phase_detector.phase_detect(signal)
+                s, max_deg, _, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3)
+                max_degs[i] = max_deg
+                feats[i, r1:r2, 0] = s
+
+            x_out = np.concatenate((np.arange(p0), np.arange(p3, signal.shape[0])))  # type: ignore
+            x_in = np.arange(p1, p2)
+
+            ranges = [(0, 133), (133, 283)]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                s, _, _, _ = self._calibrate_train_alpenglow(
+                    signal, p0, p1, p2, p3, max_deg=max_degs[i]
+                )
+                feats[i, r1:r2, 1] = s
+
+            ranges = [(0, 62), (62, 133), (133, 200), (200, 283)]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                s, _, p, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3, max_degs[i])
+                feats[i, r1:r2, 2] = s
+
+                
+                px = p.predict(np.arange(data.shape[1]))  # type: ignore
+
+                for l in range(r1, r2):  # noqa: E741
+                    signal = self._smooth_data(train[:, l])
+
+                    f = partial(self._f_coef, px[x_out], signal[x_out])
+                    r = minimize_scalar(f)
+                    a = r.x  # type: ignore
+
+                    f = partial(self._f_coef, px[x_in], signal[x_in])
+                    r = minimize_scalar(f)
+                    b = r.x  # type: ignore
+
+                    feats[i, l, 7] = 1.0 - a / b
+
+            ranges = [(j * 50, 50 + j * 50) for j in range(283 // 50 + 1)]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                s, _, p, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3, 4)
+                feats[i, r1:r2, 3] = s
+                px = p.predict(np.arange(data.shape[1]))  # type: ignore
+                if r2 > 283:
+                    r2 = 283
+                for l in range(r1, r2):  # noqa: E741
+                    signal = self._smooth_data(train[:, l])
+
+                    f = partial(self._f_coef, px[x_out], signal[x_out])
+                    r = minimize_scalar(f)
+                    a = r.x  # type: ignore
+
+                    f = partial(self._f_coef, px[x_in], signal[x_in])
+                    r = minimize_scalar(f)
+                    b = r.x  # type: ignore
+
+                    feats[i, l, 8] = 1.0 - a / b
+
+            ranges = [
+                (0, 1),
+                (1, 16),
+                (16, 31),
+                (31, 46),
+                (46, 62),
+                (62, 77),
+                (77, 97),
+                (97, 112),
+                (112, 133),
+                (133, 149),
+                (149, 168),
+                (168, 185),
+                (185, 200),
+                (200, 215),
+                (215, 240),
+                (240, 255),
+                (255, 283),
+            ]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                s, _, _, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3, 3)
+                feats[i, r1:r2, 4] = s
+
+            ranges = [(j * 8, 8 + j * 8) for j in range(283 // 8 + 1)]
+            for r1, r2 in ranges:
+                signal = train[:, r1:r2].mean(axis=1)
+                signal = self._smooth_data(signal)
+                s, _, _, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3, 3)
+                feats[i, r1:r2, 5] = s
+
+            q_train = self._smooth_data(train.transpose(1, 0))
+            q_train = q_train / q_train.mean(axis=1, keepdims=True)
+
+            px = p.predict(np.arange(data.shape[1]))  # type: ignore
+
+            for l in range(283):  # noqa: E741
+                signal = q_train[l]
+
+                f = partial(self._f_coef, px[x_out], signal[x_out])
+                r = minimize_scalar(f)
+                a = r.x  # type: ignore
+
+                f = partial(self._f_coef, px[x_in], signal[x_in])
+                r = minimize_scalar(f)
+                b = r.x  # type: ignore
+                feats[i, l, 6] = 1.0 - a / b
+
+        return feats
