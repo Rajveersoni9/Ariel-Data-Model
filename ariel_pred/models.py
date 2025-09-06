@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 from sklearn.model_selection import KFold
@@ -185,3 +186,39 @@ class SegeiOldCNNTrainer:
                 f"{models_save_path}/sergei_old_cnn_fold{fold + 1}.pth",
             )
 
+
+class SergeiOldInference:
+    """Expect data to be of shape (n_samples, 9, 283)"""
+
+    def __init__(self, models_dir: Path, device: torch.device):
+        self.device = device
+        self.model_files = sorted(models_dir.glob("sergei_old_cnn_fold*.pth"))
+
+    def predict(self, data, batch_size=32):
+        data_x = torch.from_numpy(data).float()
+        dataset = torch.utils.data.TensorDataset(data_x)
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+        preds = np.zeros((len(self.model_files), len(dataset), 283))
+        ss = np.zeros((len(self.model_files), len(dataset), 283))
+
+        for model_file in self.model_files:
+            model = SergeiOldCNN().to(self.device)
+            model.load_state_dict(torch.load(model_file, map_location=self.device))
+            model.eval()
+            offset = 0
+            with torch.no_grad():
+                for i, data in enumerate(data_loader):
+                    inputs = data[0]
+                    inputs = inputs.to(self.device)
+                    spectrum, sigma = model(inputs)
+                    preds[offset : offset + len(inputs)] += (
+                        spectrum.detach().cpu().numpy() * 1e-3 + 0.0025
+                    )
+                    ss[offset : offset + len(inputs)] += (
+                        sigma.detach().cpu().numpy().clip(0) * 1e-3
+                    )
+                    offset += len(inputs)
+        preds = preds.mean(axis=0)
+        ss = ss.mean(axis=0)
+        return preds.clip(0)

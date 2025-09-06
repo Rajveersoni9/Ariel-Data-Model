@@ -2,13 +2,14 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import typer
 
 from ariel_pred.config import CalibrationConfig
 from ariel_pred.dataset import DataLoaderAndCalibrator, LabelsLoader
 from ariel_pred.features import SergeiOldFeaturesExtractor
-from ariel_pred.models import SegeiOldCNNTrainer
+from ariel_pred.models import SegeiOldCNNTrainer, SergeiOldInference
 from ariel_pred.preprocessing import SergeiDataSmoother
 from ariel_pred.transit import WindowBasedPhaseDetector
 
@@ -20,6 +21,7 @@ def main(
     input_data_folder: str = "../data/raw_subset",
     output_data_folder: str = "../data/processed/sergei",
     output_model_folder: str = "../models/sergei",
+    submission_file: str = "./submission.csv",
     stop_at_calibration: bool = False,
     stop_at_feature_extraction: bool = False,
     stop_at_model_training: bool = False,
@@ -76,12 +78,13 @@ def main(
     else:
         print("Loading train features...")
         train_features = np.load(train_features_file, allow_pickle=True)
-    if stop_at_feature_extraction:
-        return
 
     print("Extracting and saving test features...")
     test_features = feature_extractor.extract_features(test_data)
     np.save(test_features_file, test_features)
+
+    if stop_at_feature_extraction:
+        return
 
     # Labels loading
     if not train_labels_file.exists():
@@ -102,6 +105,17 @@ def main(
         model_trainer.train(cnn_train_data, train_labels, output_model_path)
     if stop_at_model_training:
         return
+
+    # Inference
+    print("Running inference on test data...")
+    inference_model = SergeiOldInference(models_dir=output_model_path, device=torch.device("mps"))
+    predictions = inference_model.predict(cnn_test_data)
+    np.save(output_data_path / "test_predictions.npy", predictions)
+
+    submission = pd.read_csv(input_data_path / "sample_submission.csv")
+    submission.iloc[:, 1:] = predictions
+    submission.to_csv(submission_file, index=False)
+    print(f"Submission file saved to {submission_file}")
 
 
 if __name__ == "__main__":
