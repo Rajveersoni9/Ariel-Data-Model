@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import torch
 import typer
 
 from ariel_pred.config import CalibrationConfig
@@ -12,6 +11,7 @@ from ariel_pred.features import SergeiOldFeaturesExtractor
 from ariel_pred.models import SegeiOldCNNTrainer, SergeiOldInference
 from ariel_pred.preprocessing import SergeiDataSmoother
 from ariel_pred.transit import WindowBasedPhaseDetector
+from ariel_pred.utils import get_device_from_str
 
 app = typer.Typer()
 
@@ -26,7 +26,11 @@ def main(
     stop_at_feature_extraction: bool = False,
     stop_at_model_training: bool = False,
     train_data_cutoff: int | None = None,
+    device: str = "cpu",
 ):
+    torch_device = get_device_from_str(device)
+    print(f"Using device: {torch_device}")
+
     # Path setup
     input_data_path = Path(input_data_folder)
     output_data_path = Path(output_data_folder)
@@ -106,14 +110,14 @@ def main(
     cnn_test_data = test_features.transpose(0, 2, 1)
     if len(os.listdir(output_model_path)) == 0:
         print("Training model...")
-        model_trainer = SegeiOldCNNTrainer(device=torch.device("mps"))
+        model_trainer = SegeiOldCNNTrainer(device=torch_device)
         model_trainer.train(cnn_train_data, train_labels, output_model_path)
     if stop_at_model_training:
         return
 
     # Inference
     print("Running inference on test data...")
-    inference_model = SergeiOldInference(models_dir=output_model_path, device=torch.device("mps"))
+    inference_model = SergeiOldInference(models_dir=output_model_path, device=torch_device)
     predictions = inference_model.predict(cnn_test_data)
     np.save(output_data_path / "test_predictions.npy", predictions)
 
