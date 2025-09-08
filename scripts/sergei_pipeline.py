@@ -27,6 +27,7 @@ def main(
     stop_at_model_training: bool = False,
     train_data_cutoff: int | None = None,
     device: str = "cpu",
+    binning: int = 1,
 ):
     torch_device = get_device_from_str(device)
     print(f"Using device: {torch_device}")
@@ -51,7 +52,7 @@ def main(
     # Calibration and preprocessing
     calibration_config = CalibrationConfig(
         data_path=input_data_path,
-        binning=1,
+        binning=binning,
         airs_lower_channel=0,
         airs_upper_channel=356,
         preprocessing_n_jobs=4,
