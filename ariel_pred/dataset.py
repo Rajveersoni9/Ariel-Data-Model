@@ -12,9 +12,10 @@ from ariel_pred.config import CalibrationConfig
 
 # Based on Vitaly Kudelya's Baseline
 class DataLoaderAndCalibrator:
-    def __init__(self, cfg: CalibrationConfig):
+    def __init__(self, cfg: CalibrationConfig, data_cutoff: int | None = None):
         self.cfg = cfg
         self.adc_info = pd.read_csv(f"{self.cfg.DATA_PATH}/adc_info.csv")
+        self.data_cutoff = data_cutoff
 
     def _apply_linear_corr(self, linear_corr, signal):
         linear_corr_flipped = np.flip(linear_corr, axis=0)
@@ -129,6 +130,8 @@ class DataLoaderAndCalibrator:
         planet_ids = pd.read_csv(f"{self.cfg.DATA_PATH}/{dataset}_star_info.csv")[
             "planet_id"
         ].values.astype(int)
+        if self.data_cutoff is not None:
+            planet_ids = planet_ids[: self.data_cutoff]
 
         args_fgs1 = [
             dict(planet_id=planet_id, dataset=dataset, sensor="FGS1") for planet_id in planet_ids
@@ -153,10 +156,13 @@ class DataLoaderAndCalibrator:
 
 
 class LabelsLoader:
-    def __init__(self, base_data_path: str):
+    def __init__(self, base_data_path: str, data_cutoff: int | None = None):
         self.base_data_path = Path(base_data_path)
+        self.data_cutoff = data_cutoff
 
     def load_labels(self) -> np.ndarray:
         labels_df = pd.read_csv(self.base_data_path / "train.csv")
         labels = labels_df.drop(columns=["planet_id"]).to_numpy()
+        if self.data_cutoff is not None:
+            labels = labels[: self.data_cutoff]
         return labels

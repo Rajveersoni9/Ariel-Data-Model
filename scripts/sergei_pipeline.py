@@ -25,6 +25,7 @@ def main(
     stop_at_calibration: bool = False,
     stop_at_feature_extraction: bool = False,
     stop_at_model_training: bool = False,
+    train_data_cutoff: int | None = None,
 ):
     # Path setup
     input_data_path = Path(input_data_folder)
@@ -51,7 +52,9 @@ def main(
         airs_upper_channel=356,
         preprocessing_n_jobs=4,
     )
-    signal_processor = DataLoaderAndCalibrator(cfg=calibration_config)
+    signal_processor = DataLoaderAndCalibrator(
+        cfg=calibration_config, data_cutoff=train_data_cutoff
+    )
     data_smoother = SergeiDataSmoother(window_size=3)
     if not calibrated_train_data_file.exists():
         print("Calibrating and saving train data...")
@@ -89,7 +92,9 @@ def main(
     # Labels loading
     if not train_labels_file.exists():
         print("Loading and saving train labels...")
-        labels_loader = LabelsLoader(base_data_path=str(input_data_path))
+        labels_loader = LabelsLoader(
+            base_data_path=str(input_data_path), data_cutoff=train_data_cutoff
+        )
         train_labels = labels_loader.load_labels()
         np.save(train_labels_file, train_labels)
     else:
