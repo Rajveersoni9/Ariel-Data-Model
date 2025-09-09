@@ -1,29 +1,28 @@
-from pathlib import Path
-
-from loguru import logger
-from tqdm import tqdm
-import typer
-
-from ariel_pred.config import FIGURES_DIR, PROCESSED_DATA_DIR
-
-app = typer.Typer()
+import matplotlib.pyplot as plt
+import numpy as np
 
 
-@app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    output_path: Path = FIGURES_DIR / "plot.png",
-    # -----------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Generating plot from data...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Plot generation complete.")
-    # -----------------------------------------
+def plot_white_curve(
+    signal: np.ndarray, title: str = "White Curve", color: str = "blue", alpha: float = 1.0
+) -> None:
+    """
+    Plots the white curve (average flux over all wavelengths) of the given signal.
 
+    Args:
+        signal (np.ndarray): 1D or 2D array with shape (num_time_steps) or (num_time_steps, num_wavelengths).
+        title (str): Title of the plot. Default is "White Curve".
 
-if __name__ == "__main__":
-    app()
+    Returns:
+        None
+    """
+    assert len(signal.shape) <= 2, "Signal should be 1D or 2D array"
+    if len(signal.shape) == 2:
+        signal = signal.mean(axis=1)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(signal, color=color, alpha=alpha)
+    plt.title(title)
+    plt.xlabel("Time")
+    plt.ylabel("Flux")
+    plt.grid()
+    plt.show()

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.signal import savgol_filter
 
 
 class SergeiDataSmoother:
@@ -59,3 +60,22 @@ class SergeiDataSmoother:
         else:
             t_smooth = t_smooth[:, ::-1]
         return np.concatenate([signal[:, 0:1], t_smooth], axis=1)
+
+
+class SGSmoothing:
+    def __init__(self, window_size: int = 5, poly_order: int = 2):
+        self.window_size = window_size
+        self.poly_order = poly_order
+
+    def smooth(self, signal: np.ndarray) -> np.ndarray:
+        """
+        Smooths the input signal using Savitzky-Golay filter.
+
+        Args:
+            signal (np.ndarray): 1D array with shape (num_time_steps)
+
+        Returns:
+            np.ndarray: Smoothed signal with the shape (num_time_steps)
+        """
+        assert len(signal.shape) == 1, "Expecting White curve (1D array)"
+        return savgol_filter(signal, self.window_size, self.poly_order)
