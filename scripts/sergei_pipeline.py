@@ -19,7 +19,8 @@ app = typer.Typer()
 @app.command()
 def main(
     input_data_folder: str = "../data/raw_subset",
-    output_data_folder: str = "../data/processed/sergei",
+    calibrated_data_folder: str = "../data/processed/sergei",
+    features_data_folder: str = "../data/features/sergei",
     output_model_folder: str = "../models/sergei",
     submission_file: str = "./submission.csv",
     stop_at_calibration: bool = False,
@@ -34,20 +35,21 @@ def main(
 
     # Path setup
     input_data_path = Path(input_data_folder)
-    output_data_path = Path(output_data_folder)
+    calibrated_data_path = Path(calibrated_data_folder)
+    features_data_path = Path(features_data_folder)
     output_model_path = Path(output_model_folder)
 
     if not input_data_path.exists():
         raise ValueError(f"Input data folder {input_data_path} does not exist")
 
-    os.makedirs(output_data_path, exist_ok=True)
+    os.makedirs(calibrated_data_path, exist_ok=True)
+    os.makedirs(features_data_path, exist_ok=True)
     os.makedirs(output_model_path, exist_ok=True)
 
-    calibrated_train_data_file = output_data_path / "calibrated_train_data.npy"
-    calibrated_test_data_file = output_data_path / "calibrated_test_data.npy"
-    train_features_file = output_data_path / "train_features.npy"
-    test_features_file = output_data_path / "test_features.npy"
-    train_labels_file = output_data_path / "train_labels.npy"
+    calibrated_train_data_file = calibrated_data_path / "calibrated_train_data.npy"
+    calibrated_test_data_file = calibrated_data_path / "calibrated_test_data.npy"
+    train_features_file = features_data_path / "train_features.npy"
+    test_features_file = features_data_path / "test_features.npy"
 
     # Calibration and preprocessing
     calibration_config = CalibrationConfig(
@@ -70,9 +72,6 @@ def main(
         print("Loading calibrated train data...")
         train_data = np.load(calibrated_train_data_file, allow_pickle=True)
 
-    test_data = signal_processor.process_all_data("test")
-    test_data = np.array([data_smoother.smooth(signal) for signal in test_data])
-    np.save(calibrated_test_data_file, test_data)
     if stop_at_calibration:
         return
 
@@ -87,28 +86,19 @@ def main(
         print("Loading train features...")
         train_features = np.load(train_features_file, allow_pickle=True)
 
-    print("Extracting and saving test features...")
-    test_features = feature_extractor.extract_features(test_data)
-    np.save(test_features_file, test_features)
-
     if stop_at_feature_extraction:
         return
 
     # Labels loading
-    if not train_labels_file.exists():
-        print("Loading and saving train labels...")
-        labels_loader = LabelsLoader(
-            base_data_path=str(input_data_path), data_cutoff=train_data_cutoff
-        )
-        train_labels = labels_loader.load_labels()
-        np.save(train_labels_file, train_labels)
-    else:
-        print("Loading train labels...")
-        train_labels = np.load(train_labels_file, allow_pickle=True)
+    print("Loading train labels...")
+    labels_loader = LabelsLoader(
+        base_data_path=str(input_data_path), data_cutoff=train_data_cutoff
+    )
+    train_labels = labels_loader.load_labels()
 
     # Model Training
     cnn_train_data = train_features.transpose(0, 2, 1)
-    cnn_test_data = test_features.transpose(0, 2, 1)
+
     if len(os.listdir(output_model_path)) == 0:
         print("Training model...")
         model_trainer = SegeiOldCNNTrainer(device=torch_device)
@@ -117,10 +107,20 @@ def main(
         return
 
     # Inference
+    print("Calibrating and saving test data...")
+    test_data = signal_processor.process_all_data("test")
+    test_data = np.array([data_smoother.smooth(signal) for signal in test_data])
+    np.save(calibrated_test_data_file, test_data)
+
+    print("Extracting and saving test features...")
+    test_features = feature_extractor.extract_features(test_data)
+    np.save(test_features_file, test_features)
+    cnn_test_data = test_features.transpose(0, 2, 1)
+
     print("Running inference on test data...")
     inference_model = SergeiOldInference(models_dir=output_model_path, device=torch_device)
     predictions = inference_model.predict(cnn_test_data)
-    np.save(output_data_path / "test_predictions.npy", predictions)
+    np.save(calibrated_data_path / "test_predictions.npy", predictions)
 
     submission = pd.read_csv(input_data_path / "sample_submission.csv")
     submission.iloc[:, 1:] = predictions
