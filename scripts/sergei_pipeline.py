@@ -6,7 +6,7 @@ import pandas as pd
 import typer
 
 from ariel_pred.config import CalibrationConfig
-from ariel_pred.dataset import DataLoaderAndCalibrator, LabelsLoader
+from ariel_pred.dataset import LabelsLoader, OldDataLoaderAndCalibrator
 from ariel_pred.features import SergeiOldFeaturesExtractor
 from ariel_pred.models import SegeiOldCNNTrainer, SergeiOldInference
 from ariel_pred.preprocessing import SergeiDataSmoother
@@ -59,7 +59,7 @@ def main(
         airs_upper_channel=356,
         preprocessing_n_jobs=4,
     )
-    signal_processor = DataLoaderAndCalibrator(
+    signal_processor = OldDataLoaderAndCalibrator(
         cfg=calibration_config, data_cutoff=train_data_cutoff
     )
     data_smoother = SergeiDataSmoother(window_size=3)
