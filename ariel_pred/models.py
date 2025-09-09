@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import numpy as np
+from scipy.optimize import minimize
 from sklearn.model_selection import KFold
 import torch
 from torch import nn
@@ -222,3 +223,39 @@ class SergeiOldInference:
         preds = preds.mean(axis=0)
         ss = ss.mean(axis=0)
         return preds.clip(0)
+
+
+class TransitMultiplicationFactorFinder:
+    def __init__(self, poly_degree: int = 3, error_degree: int = 1):
+        self.poly_degree = poly_degree
+        self.error_degree = error_degree
+
+    def _cost_function(
+        self, params: tuple[float], signal: np.ndarray, t1: int, t2: int, t3: int, t4: int
+    ) -> float:
+        s = params[0]
+        y = np.concatenate([signal[:t1], signal[t2:t3] * (s + 1.0), signal[t4:]])
+        x = np.arange(len(y))
+        coeffs = np.polyfit(x, y, deg=self.poly_degree)
+        poly = np.poly1d(coeffs)
+        fitted = poly(x)
+        cost = np.mean(np.abs(y - fitted) ** self.error_degree)
+        return float(cost)
+
+    def predict(self, signal: np.ndarray, t1: int, t2: int, t3: int, t4: int) -> float:
+        assert len(signal.shape) == 1, (
+            "Signal must be a 1D array. Average across wavelengths before passing."
+        )
+        assert 0 <= t1 < t2 < t3 < t4 < len(signal), (
+            "t1, t2, t3, t4 must satisfy 0 <= t1 < t2 < t3 < t4 < signal length."
+        )
+        initial_s = (
+            np.mean(np.concatenate([signal[:t1], signal[t4:]])) / np.mean(signal[t2:t3])
+        ) - 1.0
+        result = minimize(
+            self._cost_function,
+            x0=[initial_s],
+            args=(signal, t1, t2, t3, t4),
+            method="Nelder-Mead",
+        )
+        return result.x[0]
