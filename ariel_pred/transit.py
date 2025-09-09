@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import minimize
 
 
 class WindowBasedPhaseDetector:
@@ -81,3 +82,64 @@ class WindowBasedPhaseDetector:
                 phase2 = (i_min - self.margin, i_max + self.margin)
 
         return int(phase1[0]), int(phase1[1]), int(phase2[0]), int(phase2[1])
+
+
+class FunctionFittingBasedPhaseDetector:
+    def __init__(self, window_size: int = 100, width: int = 300):
+        self.window_size = window_size
+        self.width = width
+
+    def _get_middle_of_phases_estimate(self, data: np.ndarray) -> tuple[int, int]:
+        kernel = np.ones(self.window_size) / self.window_size
+        moving_average = np.convolve(data, kernel, mode="valid")
+        diff = np.diff(moving_average)
+        moving_average_diff = np.convolve(diff, kernel, mode="valid")
+        min_idx = np.argmin(moving_average_diff)
+        max_idx = np.argmax(moving_average_diff)
+        min_idx_on_data = min_idx + self.window_size
+        max_idx_on_data = max_idx + self.window_size
+        return int(min_idx_on_data), int(max_idx_on_data)
+
+    def _cost_function(self, params: tuple[float, float, float, float], data: np.ndarray) -> float:
+        t1, t2, a, b = params
+        t1 = int(t1)
+        t2 = int(t2)
+        # Constrain Violation
+        if t1 > t2:
+            return (t1 - t2) * 1e9
+        y = np.full((data.shape[0],), a)
+        y[t1:t2] = np.linspace(a, b, t2 - t1)
+        y[t2:] = b
+        cost = np.sum((data - y) ** 2)
+        return cost
+
+    def _get_phase_boundaries(self, data: np.ndarray, region_estimate: int) -> tuple[int, int]:
+        data = data[
+            max(0, region_estimate - self.width) : min(len(data), region_estimate + self.width)
+        ]
+        initial_params = [
+            max(0, self.width // 2),
+            min(self.width * 3 // 2, len(data) - 1),
+            np.mean(data[: max(1, self.width // 2)]),
+            np.mean(data[min(len(data) - 1, self.width * 3 // 2) :]),
+        ]
+        bounds = [
+            (1, len(data) - 2),
+            (2, len(data) - 1),
+            (min(data), max(data)),
+            (min(data), max(data)),
+        ]
+        result = minimize(
+            self._cost_function, initial_params, args=(data,), bounds=bounds, method="Nelder-Mead"
+        )
+        phase_begin, phase_end, _, _ = result.x
+        phase_begin = int(phase_begin) + max(0, region_estimate - self.width)
+        phase_end = int(phase_end) + max(0, region_estimate - self.width)
+        return phase_begin, phase_end
+
+    def phase_detect(self, data: np.ndarray) -> tuple[int, int, int, int]:
+        assert len(data.shape) == 1, "Expecting White Curve. Average over wavelengths first."
+        min_idx, max_idx = self._get_middle_of_phases_estimate(data)
+        drop_begin, drop_end = self._get_phase_boundaries(data.copy(), min_idx)
+        rise_begin, rise_end = self._get_phase_boundaries(data.copy(), max_idx)
+        return drop_begin, drop_end, rise_begin, rise_end

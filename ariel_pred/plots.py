@@ -25,4 +25,3 @@ def plot_white_curve(
     plt.xlabel("Time")
     plt.ylabel("Flux")
     plt.grid()
-    plt.show()
