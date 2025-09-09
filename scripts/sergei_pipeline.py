@@ -19,8 +19,8 @@ app = typer.Typer()
 @app.command()
 def main(
     input_data_folder: str = "../data/raw_subset",
-    calibrated_data_folder: str = "../data/processed/sergei",
-    features_data_folder: str = "../data/features/sergei",
+    calibrated_data_folder: str = "../data/processed/sergei/calibrated",
+    features_data_folder: str = "../data/processed/sergei/features",
     output_model_folder: str = "../models/sergei",
     submission_file: str = "./submission.csv",
     stop_at_calibration: bool = False,
@@ -76,7 +76,7 @@ def main(
         return
 
     # Feature Extraction
-    transit_detector = WindowBasedPhaseDetector()
+    transit_detector = WindowBasedPhaseDetector(binning_factor=binning)
     feature_extractor = SergeiOldFeaturesExtractor(phase_detector=transit_detector)
     if not train_features_file.exists():
         print("Extracting and saving train features...")

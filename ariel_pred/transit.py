@@ -11,14 +11,15 @@ class WindowBasedPhaseDetector:
         transit_begin_search_end=82,
         transit_end_search_start=105,
         transit_end_search_end=147,
+        binning_factor=1,
     ):
-        self.window_size = window_size
-        self.margin = margin
-        self.scale = scale
-        self.transit_begin_search_start = transit_begin_search_start
-        self.transit_begin_search_end = transit_begin_search_end
-        self.transit_end_search_start = transit_end_search_start
-        self.transit_end_search_end = transit_end_search_end
+        self.window_size = window_size // binning_factor
+        self.margin = margin // binning_factor
+        self.scale = scale // binning_factor
+        self.transit_begin_search_start = transit_begin_search_start // binning_factor
+        self.transit_begin_search_end = transit_begin_search_end // binning_factor
+        self.transit_end_search_start = transit_end_search_start // binning_factor
+        self.transit_end_search_end = transit_end_search_end // binning_factor
 
     def phase_detect(self, signal: np.ndarray) -> tuple[int, int, int, int]:
         assert len(signal.shape) == 1, "Expecting White Curve. Average over wavelengths first."
