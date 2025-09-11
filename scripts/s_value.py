@@ -47,6 +47,7 @@ def main(
     features = np.clip(features, a_min=0.0, a_max=10.0)
 
     result = np.concatenate([features * multiplier, np.full(features.shape, sigma)], axis=1)
+    assert result.shape == (test_data.shape[0], 283 * 2), f"Result shape {result.shape} is not correct"
     submission_df = pd.read_csv(input_data_path / "sample_submission.csv")
     submission_df.iloc[:, 1:] = result
     submission_df.to_csv(submission_file, index=False)
