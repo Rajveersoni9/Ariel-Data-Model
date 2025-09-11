@@ -7,7 +7,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from tqdm import tqdm
 
-from ariel_pred.transit import WindowBasedPhaseDetector
+from ariel_pred.models import TransitMultiplicationFactorFinder
+from ariel_pred.preprocessing import SGSmoothing
+from ariel_pred.transit import FunctionFittingBasedPhaseDetector, WindowBasedPhaseDetector
 
 
 class SignalPoly:
@@ -122,7 +124,6 @@ class SergeiOldFeaturesExtractor:
                 s, _, p, _ = self._calibrate_train_alpenglow(signal, p0, p1, p2, p3, max_degs[i])
                 feats[i, r1:r2, 2] = s
 
-                
                 px = p.predict(np.arange(data.shape[1]))  # type: ignore
 
                 for l in range(r1, r2):  # noqa: E741
@@ -208,5 +209,68 @@ class SergeiOldFeaturesExtractor:
                 r = minimize_scalar(f)
                 b = r.x  # type: ignore
                 feats[i, l, 6] = 1.0 - a / b
+
+        return feats
+
+
+class WavelengthsGroupsMultiplierFinder:
+    def __init__(
+        self,
+        transit_finder: FunctionFittingBasedPhaseDetector = FunctionFittingBasedPhaseDetector(),
+        multiplier: TransitMultiplicationFactorFinder = TransitMultiplicationFactorFinder(),
+        smoother: SGSmoothing | None = SGSmoothing(window_size=150, poly_order=2),
+    ):
+        self.transit_finder = transit_finder
+        self.multiplier = multiplier
+        self.smoother = smoother
+
+    def extract_features(
+        self,
+        all_data: np.ndarray,
+        wavelengths_groups: list[int] = [1, 2, 4, 8, 16, 32, 64],
+        weights: list[float] = [1, 1, 1, 1, 1, 1, 1],
+        average_cross_groups: bool = True,
+        return_transit_locations: bool = False,
+    ) -> np.ndarray:
+        assert len(all_data.shape) == 3, (
+            "Expecting 3D array: (num_planets, num_time_steps, num_wavelengths)"
+        )
+        assert all_data.shape[2] == 283, "Expecting the AIRS channels to be cut"
+        assert len(wavelengths_groups) == len(weights), (
+            "wavelengths_groups and weights must have the same length"
+        )
+
+        num_planets = all_data.shape[0]
+        num_wavelengths = all_data.shape[2]
+
+        num_groups = len(wavelengths_groups)
+        feats = np.zeros((num_planets, num_wavelengths, num_groups))
+        ranges_list = [np.array_split(np.arange(num_wavelengths), cb) for cb in wavelengths_groups]
+
+        transit_location = (
+            np.zeros((num_planets, 4), dtype=int) if return_transit_locations else None
+        )
+
+        for i in tqdm(range(num_planets)):
+            data = all_data[i]
+            t1, t2, t3, t4 = self.transit_finder.phase_detect(
+                self.smoother.smooth(data.mean(axis=1)) if self.smoother else data.mean(axis=1)
+            )
+
+            if return_transit_locations:
+                transit_location[i] = (t1, t2, t3, t4)  # type: ignore
+
+            for j, ranges in enumerate(ranges_list):
+                for r in ranges:
+                    signal = data[:, r].mean(axis=1)
+                    signal = self.smoother.smooth(signal) if self.smoother else signal
+                    s = self.multiplier.predict(signal, t1, t2, t3, t4)
+                    feats[i, r, j] = s
+
+        if average_cross_groups:
+            feats = np.average(feats, axis=2, weights=weights)
+
+        if return_transit_locations:
+            return feats, transit_location  # type: ignore
 
         return feats
