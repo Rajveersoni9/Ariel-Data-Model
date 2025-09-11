@@ -44,6 +44,7 @@ def main(
     feature_extractor = WavelengthsGroupsMultiplierFinder()
 
     features = feature_extractor.extract_features(test_data)
+    features = np.clip(features, a_min=0.0, a_max=10.0)
 
     result = np.concatenate([features * multiplier, np.full(features.shape, sigma)], axis=1)
     submission_df = pd.read_csv(input_data_path / "sample_submission.csv")
