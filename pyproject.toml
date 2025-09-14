@@ -32,6 +32,7 @@ dependencies = [
     "python-dotenv",
     "ruff",
     "scikit-learn",
+    "seaborn>=0.13.2",
     "torch>=2.8.0",
     "tqdm",
     "typer",
