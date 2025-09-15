@@ -360,6 +360,8 @@ class DataLoaderAndCalibrator:
         else:
             print("Loading calibrated train data...")
             train_data = np.load(self.train_data_file, allow_pickle=True)
+            if self.data_cutoff is not None:
+                train_data = train_data[: self.data_cutoff]
         labels = self._load_train_labels()
         assert len(train_data) == len(labels), (
             "Mismatch between data and labels lengths. Please recheck."
