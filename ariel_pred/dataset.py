@@ -375,7 +375,7 @@ class DataLoaderAndCalibrator:
 
     def load_all_test_data(self) -> np.ndarray:
         test_data = self._process_all_data("test")
-        np.save(self.test_data_file, test_data)
+        # np.save(self.test_data_file, test_data)
         assert test_data.shape[2] == 283 if self.cut_airs_channels else 357, (
             "Unexpected number of channels in test data. Unknown reason. Please recheck."
         )
