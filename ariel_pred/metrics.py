@@ -121,6 +121,7 @@ def score(
     submit_score = np.average(ind_scores, weights=weights)
     return float(np.clip(submit_score, 0.0, 1.0))
 
+
 def score_single_row(
     solution: np.ndarray,
     submission: np.ndarray,
@@ -130,7 +131,6 @@ def score_single_row(
     airs_sigma_true: float = 1e-5,
     fgs_weight: float = 57.846,
 ) -> float:
-    
     """
     This is a Gaussian Log Likelihood based metric. For a submission, which contains the predicted mean (x_hat) and variance (x_hat_std),
     we calculate the Gaussian Log-likelihood (GLL) value to the provided ground truth (x). We treat each pair of x_hat,
@@ -186,6 +186,43 @@ def score_single_row(
     ind_scores = (GLL_pred - GLL_mean) / (GLL_true - GLL_mean)
 
     weights = np.append(np.array([fgs_weight]), np.ones(len(solution) - 1))
+    weights = weights * np.ones_like(ind_scores)
+    submit_score = np.average(ind_scores, weights=weights)
+    return float(np.clip(submit_score, 0.0, 1.0))
+
+
+def gll(
+    predictions: np.ndarray,
+    labels: np.ndarray,
+    naive_mean: float = 0.014689019532534079,
+    naive_sigma: float = 0.010661335331978338,
+    fsg_sigma_true: float = 1e-6,
+    airs_sigma_true: float = 1e-5,
+    fgs_weight: float = 57.846,
+) -> float:
+    assert (predictions.ndim == 1 and labels.ndim == 1) or (
+        predictions.ndim == 2 and labels.ndim == 2
+    )
+    if predictions.ndim == 1:
+        predictions = predictions[np.newaxis, :]
+        labels = labels[np.newaxis, :]
+    assert predictions.shape[1] == labels.shape[1] * 2
+
+    y_pred = predictions[:, : labels.shape[1]]
+    y_ref = naive_mean * np.ones_like(y_pred)
+    y_ideal = labels
+
+    sigma_pred = np.clip(predictions[:, labels.shape[1] :], a_min=1e-15, a_max=None)
+    sigma_ref = naive_sigma * np.ones_like(sigma_pred)
+    sigma_ideal = airs_sigma_true * np.ones_like(sigma_pred)
+    sigma_ideal[:, 0] = fsg_sigma_true
+
+    GLL_pred = scipy.stats.norm.logpdf(labels, loc=y_pred, scale=sigma_pred)
+    GLL_ref = scipy.stats.norm.logpdf(labels, loc=y_ref, scale=sigma_ref)
+    GLL_ideal = scipy.stats.norm.logpdf(labels, loc=y_ideal, scale=sigma_ideal)
+
+    ind_scores = (GLL_pred - GLL_ref) / (GLL_ideal - GLL_ref)
+    weights = np.append(np.array([fgs_weight]), np.ones(labels.shape[1] - 1))
     weights = weights * np.ones_like(ind_scores)
     submit_score = np.average(ind_scores, weights=weights)
     return float(np.clip(submit_score, 0.0, 1.0))
