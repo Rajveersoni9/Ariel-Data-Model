@@ -13,7 +13,6 @@ from ariel_pred.models import SValuesCNNTrainer
 app = typer.Typer()
 
 
-
 @app.command()
 def main(
     input_data_folder: str = "../data/raw",
@@ -28,6 +27,8 @@ def main(
     learning_rate: float = 0.0001,
     force_retrain: bool = False,
     train_multiplier: float = 1e3,
+    stop_at_calibration: bool = False,
+    stop_at_training: bool = False,
 ):
     torch_device = torch.device(device)
     # Path setup
@@ -52,15 +53,14 @@ def main(
     )
 
     train_data, train_labels = data_loader.load_all_train_data()
-    test_data = data_loader.load_all_test_data()
+
+    if stop_at_calibration:
+        print("Stopping at calibration")
+        return
 
     feature_extractor = WavelengthsGroupsMultiplierFinder()
     train_features = feature_extractor.extract_features(train_data, average_cross_groups=False)
     train_features = np.clip(train_features, a_min=0.0, a_max=10.0).transpose(
-        (0, 2, 1)
-    )  # (n_samples, n_channels, n_features)
-    test_features = feature_extractor.extract_features(test_data, average_cross_groups=False)
-    test_features = np.clip(test_features, a_min=0.0, a_max=10.0).transpose(
         (0, 2, 1)
     )  # (n_samples, n_channels, n_features)
 
@@ -81,6 +81,16 @@ def main(
         force_retrain=force_retrain,
         return_predictions=False,
     )
+    if stop_at_training:
+        print("Stopping at training")
+        return
+
+    # Prediction on test set
+    test_data = data_loader.load_all_test_data()
+    test_features = feature_extractor.extract_features(test_data, average_cross_groups=False)
+    test_features = np.clip(test_features, a_min=0.0, a_max=10.0).transpose(
+        (0, 2, 1)
+    )  # (n_samples, n_channels, n_features)
     spectrum, sigma = cnn_trainer.predict(test_features)
 
     result = np.concatenate([spectrum, sigma], axis=1)
