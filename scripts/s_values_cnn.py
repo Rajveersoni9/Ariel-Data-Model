@@ -13,6 +13,7 @@ from ariel_pred.models import SValuesCNNTrainer
 app = typer.Typer()
 
 
+
 @app.command()
 def main(
     input_data_folder: str = "../data/raw",
