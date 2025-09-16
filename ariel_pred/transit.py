@@ -100,20 +100,24 @@ class FunctionFittingBasedPhaseDetector:
         max_idx_on_data = max_idx + self.window_size
         return int(min_idx_on_data), int(max_idx_on_data)
 
-    def _cost_function(self, params: tuple[float, float, float, float], data: np.ndarray) -> float:
+    def _cost_function(self, params: tuple[float, float, float, float], data: np.ndarray, is_drop=True) -> float:
         t1, t2, a, b = params
         t1 = int(t1)
         t2 = int(t2)
         # Constrain Violation
         if t1 > t2:
             return (t1 - t2) * 1e9
+        if is_drop and a < b:
+            return (b - a) * 1e9
+        if not is_drop and a > b:
+            return (a - b) * 1e9
         y = np.full((data.shape[0],), a)
         y[t1:t2] = np.linspace(a, b, t2 - t1)
         y[t2:] = b
         cost = np.sum((data - y) ** 2)
         return cost
 
-    def _get_phase_boundaries(self, data: np.ndarray, region_estimate: int) -> tuple[int, int]:
+    def _get_phase_boundaries(self, data: np.ndarray, region_estimate: int, is_drop=True) -> tuple[int, int]:
         data = data[
             max(0, region_estimate - self.width) : min(len(data), region_estimate + self.width)
         ]
@@ -130,7 +134,7 @@ class FunctionFittingBasedPhaseDetector:
             (min(data), max(data)),
         ]
         result = minimize(
-            self._cost_function, initial_params, args=(data,), bounds=bounds, method="Nelder-Mead"
+            self._cost_function, initial_params, args=(data, is_drop), bounds=bounds, method="Nelder-Mead"
         )
         phase_begin, phase_end, _, _ = result.x
         phase_begin = int(phase_begin) + max(0, region_estimate - self.width)
@@ -140,6 +144,6 @@ class FunctionFittingBasedPhaseDetector:
     def phase_detect(self, data: np.ndarray) -> tuple[int, int, int, int]:
         assert len(data.shape) == 1, "Expecting White Curve. Average over wavelengths first."
         min_idx, max_idx = self._get_middle_of_phases_estimate(data)
-        drop_begin, drop_end = self._get_phase_boundaries(data.copy(), min_idx)
-        rise_begin, rise_end = self._get_phase_boundaries(data.copy(), max_idx)
+        drop_begin, drop_end = self._get_phase_boundaries(data.copy(), min_idx, is_drop=True)
+        rise_begin, rise_end = self._get_phase_boundaries(data.copy(), max_idx, is_drop=False)
         return drop_begin, drop_end, rise_begin, rise_end
