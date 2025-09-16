@@ -263,8 +263,19 @@ class TransitMultiplicationFactorFinder:
 
 
 class SValuesCNN(nn.Module):
-    def __init__(self, in_channels: int = 9):
+    def __init__(
+        self,
+        in_channels: int = 9,
+        min_sigma: float | None = 1e-6,
+        max_sigma: float | None = 1.0,
+        min_output: float | None = 1e-15,
+        max_output: float | None = 2.0,
+    ):
         super(SValuesCNN, self).__init__()
+        self.min_sigma = min_sigma
+        self.max_sigma = max_sigma
+        self.min_output = min_output
+        self.max_output = max_output
 
         self.spectra = nn.Sequential(
             nn.Conv1d(in_channels, 256, 3, padding="same", bias=False),
@@ -298,7 +309,9 @@ class SValuesCNN(nn.Module):
 
     def forward(self, x):
         spectra = self.spectra(x)
+        spectra = torch.clamp(spectra, min=self.min_output, max=self.max_output)
         sigma = self.sigma(spectra - x[:, :1, :])
+        sigma = torch.clamp(sigma, min=self.min_sigma, max=self.max_sigma)
         return spectra.squeeze(1), sigma
 
 
@@ -310,15 +323,37 @@ class SValuesCNNTrainer:
         in_channels: int = 9,
         train_multiplier: float = 1.0,
         num_channels: int = 283,
+        min_sigma_unscaled: float | None = 1e-7,
+        max_sigma_unscaled: float | None = 1.0,
+        min_spectrum_unscaled: float | None = 1e-15,
+        max_spectrum_unscaled: float | None = 2.0,
     ):
         self.models_save_path = models_save_path
         self.device = device
         self.in_channels = in_channels
         self.train_multiplier = train_multiplier
         self.num_channels = num_channels
+        self.min_sigma = (
+            min_sigma_unscaled * train_multiplier if min_sigma_unscaled is not None else None
+        )
+        self.max_sigma = (
+            max_sigma_unscaled * train_multiplier if max_sigma_unscaled is not None else None
+        )
+        self.min_spectrum = (
+            min_spectrum_unscaled * train_multiplier if min_spectrum_unscaled is not None else None
+        )
+        self.max_spectrum = (
+            max_spectrum_unscaled * train_multiplier if max_spectrum_unscaled is not None else None
+        )
 
     def _make_model(self):
-        model = SValuesCNN(in_channels=self.in_channels).to(self.device)
+        model = SValuesCNN(
+            in_channels=self.in_channels,
+            min_sigma=self.min_sigma,
+            max_sigma=self.max_sigma,
+            min_output=self.min_spectrum,
+            max_output=self.max_spectrum,
+        ).to(self.device)
         return model
 
     def _create_data_loaders(
@@ -384,8 +419,14 @@ class SValuesCNNTrainer:
             torch.mean((spectrum - targets) ** 2.0, dim=1, keepdims=True) ** 0.5  # type: ignore
         )
         loss2_value = F.smooth_l1_loss(sigma, mean_diff)
-        loss_value = loss1_value + loss2_value * 1e-3
+        loss_value = loss1_value + loss2_value / self.train_multiplier
         return loss_value
+
+    def _normalize_data(self, data: np.ndarray) -> np.ndarray:
+        return data * self.train_multiplier
+
+    def _normalize_labels(self, labels: np.ndarray) -> np.ndarray:
+        return labels * self.train_multiplier
 
     def train(
         self,
@@ -433,10 +474,10 @@ class SValuesCNNTrainer:
         for fold, (train_index, val_index) in enumerate(splits):
             model = self._make_model()
             train_loader, val_loader = self._create_data_loaders(
-                data * self.train_multiplier,
+                self._normalize_data(data),
                 train_index,
                 val_index,
-                labels * self.train_multiplier,
+                self._normalize_labels(labels),
                 batch_size,
                 shuffle=True,
             )
@@ -512,7 +553,7 @@ class SValuesCNNTrainer:
                 )
                 all_sigma[offset : offset + len(inputs), :] = (
                     sigma.detach().cpu().numpy().flatten() / self.train_multiplier
-                ).clip(1e-10)[:, np.newaxis]
+                )[:, np.newaxis]
                 if calculate_loss:
                     targets = data[1].to(self.device)
                     loss = self._calc_loss(spectrum, targets, sigma)
