@@ -462,7 +462,7 @@ class SValuesCNNTrainer:
                 val_spectras, val_sigmas, avg_val_loss = self._predict_from_single_model(  # type: ignore
                     model, val_loader, calculate_loss=True
                 )
-                if return_predictions:
+                if return_predictions and epoch == epochs - 1:
                     predectited_spectra[val_index] = val_spectras
                     predectited_sigmas[val_index] = val_sigmas
                 epoch_val_loss[fold, epoch] = avg_val_loss

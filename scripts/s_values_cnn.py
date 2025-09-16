@@ -9,6 +9,7 @@ import typer
 from ariel_pred.dataset import DataLoaderAndCalibrator
 from ariel_pred.features import WavelengthsGroupsMultiplierFinder
 from ariel_pred.models import SValuesCNNTrainer
+from ariel_pred.sigma import SpectrumVariationScaler
 
 app = typer.Typer()
 
@@ -29,6 +30,7 @@ def main(
     train_multiplier: float = 1e3,
     stop_at_calibration: bool = False,
     stop_at_training: bool = False,
+    mean_sigma: float = 0.00068,
 ):
     torch_device = torch.device(device)
     # Path setup
@@ -91,9 +93,11 @@ def main(
     test_features = np.clip(test_features, a_min=0.0, a_max=10.0).transpose(
         (0, 2, 1)
     )  # (n_samples, n_channels, n_features)
-    spectrum, sigma = cnn_trainer.predict(test_features)
+    spectrum, _ = cnn_trainer.predict(test_features)
+    sigma_calculator = SpectrumVariationScaler(mean_sigma=mean_sigma, num_channels=283)
+    predicted_sigma = sigma_calculator.get_sigma(spectrum)
 
-    result = np.concatenate([spectrum, sigma], axis=1)
+    result = np.concatenate([spectrum, predicted_sigma], axis=1)
     assert result.shape == (test_data.shape[0], 283 * 2), (
         f"Result shape {result.shape} is not correct"
     )
