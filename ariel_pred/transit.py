@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
+from tqdm.auto import tqdm
 
 
 class WindowBasedPhaseDetector:
@@ -100,7 +101,9 @@ class FunctionFittingBasedPhaseDetector:
         max_idx_on_data = max_idx + self.window_size
         return int(min_idx_on_data), int(max_idx_on_data)
 
-    def _cost_function(self, params: tuple[float, float, float, float], data: np.ndarray, is_drop=True) -> float:
+    def _cost_function(
+        self, params: tuple[float, float, float, float], data: np.ndarray, is_drop=True
+    ) -> float:
         t1, t2, a, b = params
         t1 = int(t1)
         t2 = int(t2)
@@ -117,7 +120,9 @@ class FunctionFittingBasedPhaseDetector:
         cost = np.sum((data - y) ** 2)
         return cost
 
-    def _get_phase_boundaries(self, data: np.ndarray, region_estimate: int, is_drop=True) -> tuple[int, int]:
+    def _get_phase_boundaries(
+        self, data: np.ndarray, region_estimate: int, is_drop=True
+    ) -> tuple[int, int]:
         data = data[
             max(0, region_estimate - self.width) : min(len(data), region_estimate + self.width)
         ]
@@ -134,7 +139,11 @@ class FunctionFittingBasedPhaseDetector:
             (min(data), max(data)),
         ]
         result = minimize(
-            self._cost_function, initial_params, args=(data, is_drop), bounds=bounds, method="Nelder-Mead"
+            self._cost_function,
+            initial_params,
+            args=(data, is_drop),
+            bounds=bounds,
+            method="Nelder-Mead",
         )
         phase_begin, phase_end, _, _ = result.x
         phase_begin = int(phase_begin) + max(0, region_estimate - self.width)
@@ -147,3 +156,10 @@ class FunctionFittingBasedPhaseDetector:
         drop_begin, drop_end = self._get_phase_boundaries(data.copy(), min_idx, is_drop=True)
         rise_begin, rise_end = self._get_phase_boundaries(data.copy(), max_idx, is_drop=False)
         return drop_begin, drop_end, rise_begin, rise_end
+
+    def phase_detect_multiple_planets(self, data: np.ndarray):
+        assert data.ndim == 2, "Expecting 2D array with shape (num_planets, num_time_steps)"
+        result = np.zeros((data.shape[0], 4), dtype=int)
+        for i in tqdm(range(data.shape[0])):
+            result[i] = self.phase_detect(data[i])
+        return result
