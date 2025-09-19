@@ -5,7 +5,7 @@ from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from ariel_pred.models import TransitMultiplicationFactorFinder
 from ariel_pred.preprocessing import SGSmoothing
@@ -272,5 +272,39 @@ class WavelengthsGroupsMultiplierFinder:
 
         if return_transit_locations:
             return feats, transit_location  # type: ignore
+
+        return feats
+
+
+class PerChannelFluctuationsFinder:
+    def __init__(self, smoother: SGSmoothing | None = SGSmoothing(window_size=150, poly_order=2)):
+        self.smoother = smoother
+
+    def extract_features(self, all_data: np.ndarray, transit_locations: np.ndarray) -> np.ndarray:
+        assert len(all_data.shape) == 3, (
+            "Expecting 3D array: (num_planets, num_time_steps, num_wavelengths)"
+        )
+        assert len(transit_locations.shape) == 2 and transit_locations.shape[1] == 4, (
+            "Expecting transit_locations to be of shape (num_planets, 4)"
+        )
+        assert all_data.shape[0] == transit_locations.shape[0], (
+            "num_planets in all_data and transit_locations must be the same"
+        )
+
+        num_planets = all_data.shape[0]
+        num_wavelengths = all_data.shape[2]
+
+        feats = np.zeros((num_planets, num_wavelengths))
+
+        for i in tqdm(range(num_planets)):
+            signal = all_data[i].copy()
+            t1, t2, t3, t4 = transit_locations[i]
+
+            for w in range(signal.shape[1]):  # noqa: E741
+                signal[:, w] = (
+                    self.smoother.smooth(signal[:, w]) if self.smoother else signal[:, w]
+                )
+            x_out = np.concatenate((np.arange(t1), np.arange(t4, signal.shape[0])))
+            feats[i] = (signal[x_out].mean(axis=0) - signal[x_out].mean()) / signal[x_out].mean()
 
         return feats
