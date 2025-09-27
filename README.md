@@ -95,6 +95,8 @@ I want to express my deep gratitude to all those who shared their insights, code
 
 A Brief Guide to Calibration Frames: Bias, Dark, Flats and Dark Flats. (2025, April 9). https://practicalastrophotography.com/
 
+Antonoof. (n.d.). 0.374 LB score | bronze medal. Retrieved September 27, 2025, from https://kaggle.com/code/antonoof/0-374-lb-score-bronze-medal
+
 Aparin, G., Хапилов, А., Vinogradov, R., & Kudelya, V. (n.d.). 10th Place Solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com//competitions/ariel-data-challenge-2024/writeups/xomox-10th-place-solution
 
 Ariel’s instruments. (n.d.). Retrieved September 27, 2025, from https://www.esa.int/Science_Exploration/Space_Science/Ariel/Ariel_s_instruments
