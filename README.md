@@ -97,17 +97,17 @@ A Brief Guide to Calibration Frames: Bias, Dark, Flats and Dark Flats. (2025, Ap
 
 Antonoof. (n.d.). 0.374 LB score | bronze medal. Retrieved September 27, 2025, from https://kaggle.com/code/antonoof/0-374-lb-score-bronze-medal
 
-Aparin, G., Хапилов, А., Vinogradov, R., & Kudelya, V. (n.d.). 10th Place Solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com//competitions/ariel-data-challenge-2024/writeups/xomox-10th-place-solution
+Aparin, G., Хапилов, А., Vinogradov, R., & Kudelya, V. (n.d.). 10th Place Solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/xomox-10th-place-solution
 
 Ariel’s instruments. (n.d.). Retrieved September 27, 2025, from https://www.esa.int/Science_Exploration/Space_Science/Ariel/Ariel_s_instruments
 
 Barstow, J. K., Aigrain, S., Irwin, P. G. J., Kendrew, S., & Fletcher, L. N. (2015). Transit spectroscopy with James Webb Space Telescope: Systematics, starspots and stitching. Monthly Notices of the Royal Astronomical Society, 448(3), 2546–2561. https://doi.org/10.1093/mnras/stv186
 
-Cottaar, J. (n.d.). 2nd place solution—Pure Bayesian Inference, no deep learning | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com//competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in
+Cottaar, J. (n.d.). 2nd place solution—Pure Bayesian Inference, no deep learning | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/jeroen-cottaar-2nd-place-solution-pure-bayesian-in
 
-Fironov, S. (n.d.). 6th place solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com//competitions/ariel-data-challenge-2024/writeups/through-the-thorns-to-the-star-6th-place-solution
+Fironov, S. (n.d.). 6th place solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/through-the-thorns-to-the-star-6th-place-solution
 
-Horie, K., & Arai, Y. (n.d.). 1st Place Solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com//competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution
+Horie, K., & Arai, Y. (n.d.). 1st Place Solution | Kaggle. Retrieved September 27, 2025, from https://www.kaggle.com/competitions/ariel-data-challenge-2024/writeups/c-number-daiwakun-1st-place-solution
 
 Kai Hou Yip, L. V. M., Rebecca L. Coates, Andrea Bocchieri, Orphée Faucoz, Arun Nambiyath Govindan, Giuseppe Morello, Andreas Papageorgiou, Angèle Syty, Tara Tahseen, Sohier Dane, Maggie Demkin, Jean-Philippe Beaulieu, Sudeshna Boro Saikia, Giovanni Bruno, Quentin Changeat, Camilla Danielski, Pascale Danto, Jack Davey, Pierre Drossart, Paul Eccleston, Billy Edwards, Clare Jenner, Ryan King, Theresa Lueftinger, Michiel Min, Nikolaos Nikolaou, Leonardo Pagliaro, Enzo Pascale, Emilie Panek, Alice Radcliffe, Luís F. Simões, Patricio Cubillos Vallejos, Tiziano Zingales, Giovanna Tinetti, Ingo P. Waldmann. NeurIPS-Ariel Data Challenge 2025. https://kaggle. com/competitions/ariel-data-challenge-2025. (2025). NeurIPS - Ariel Data Challenge 2025. https://kaggle.com/competitions/ariel-data-challenge-2025
 
