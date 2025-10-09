@@ -2,6 +2,7 @@
 
 # Data
 /data/
+/space_data/
 
 # Model Weights
 /models/

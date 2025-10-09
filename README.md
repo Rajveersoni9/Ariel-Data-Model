@@ -91,7 +91,7 @@ Multiple notebooks were created for the competition. They can be categorized int
 
 I want to express my deep gratitude to all those who shared their insights, code, and solutions both during this competition and in 2024 version. Without building on the work of others, I would not have been able to achieve this result.
 
-### Refrences
+### References
 
 A Brief Guide to Calibration Frames: Bias, Dark, Flats and Dark Flats. (2025, April 9). https://practicalastrophotography.com/
 
