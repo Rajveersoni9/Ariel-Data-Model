@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # NeurIPS - Ariel Data Challenge 2025 Silver Medal Solution (48th / 860 teams)
 
 [![Certificate](./readme-assets/certificate.png)](https://www.kaggle.com/certification/competitions/ibrahimhabibeg/ariel-data-challenge-2025)
@@ -130,3 +131,6 @@ Yip, G., Faucoz, O., Tahseen, T., Syty, A., & Batista, V. (n.d.). —Host Starte
 Yip, K. H., Mugnai, L. V., Bocchieri, A., Papageorgiou, A., Faucoz, O., Tahseen, T., Virginie, B., Syty, A., Pascale, E., Changeat, Q., Edwards, B., Eccleston, P., Jenner, C., King, R., Lueftinger, T., Nikolaou, N., Danto, P., Saikia, S. B., Simões, L. F., … Waldmann, I. P. (2024, April 6). Ariel Data Challenge 2024: Extracting exoplanetary signals from the Ariel Space Telescope. NeurIPS 2024 Competition Track. https://openreview.net/forum?id=1mGm9tHrFT
 
 Yip, K. H., Mugnai, L. V., Coates, R. L., Bocchieri, A., Papageorgiou, A., Faucoz, O., Tahseen, T., Batista, V., Syty, A., Govindan, A. N., Dane, S., Demkin, M., Pascale, E., Beaulieu, J.-P., Changeat, Q., Drossart, P., Edwards, B., Eccleston, P., Jenner, C., … Challenge 2024, I. P. W. N.-A. D. (2024). NeurIPS - Ariel Data Challenge 2024. https://kaggle.com/competitions/ariel-data-challenge-2024
+=======
+# Ariel-Data-Model
+>>>>>>> d530c118ced1e971c94884f7280e6cb85c1d5d86
