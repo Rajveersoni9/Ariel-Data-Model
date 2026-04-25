@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import typer
 
-from ariel_pred.dataset import DataLoaderAndCalibrator
 from ariel_pred.features import WavelengthsGroupsMultiplierFinder
 from ariel_pred.metrics import gll
 from ariel_pred.modeling.s_values_cnn_with_star_info import SValuesCNNWithStarInfoTrainer
@@ -37,21 +36,18 @@ def main(
     os.makedirs(calibrated_data_path, exist_ok=True)
 
     # Calibration and preprocessing
-    data_loader = DataLoaderAndCalibrator(
-        data_path=Path(input_data_path),
-        output_path=Path(calibrated_data_path),
-        force_recalibration=False,
-        cut_airs_channels=True,
-        binning=binning,
-        n_jobs=4,
-    )
+    # Load pre-calibrated data
+    train_data = np.load(calibrated_data_path / "calibrated_train_data.npy")
+    test_data = np.load(calibrated_data_path / "calibrated_test_data.npy")
 
-    train_data, train_labels = data_loader.load_all_train_data()
-
-    if stop_at_calibration:
-        print("Stopping at calibration")
-        return
-
+    # Load labels (IMPORTANT)
+    train_df = pd.read_csv(input_data_path / "train.csv")
+    train_labels = train_df.iloc[:, 1:].values
+    
+    print("Labels shape:", train_labels.shape)
+    print("Train data shape:", train_data.shape)
+    print("Test data shape:", test_data.shape)
+    
     features_extractor = WavelengthsGroupsMultiplierFinder()
 
     train_features = features_extractor.extract_features(
@@ -93,7 +89,6 @@ def main(
         print("Stopping at training")
         return
 
-    test_data = data_loader.load_all_test_data()
 
     test_features = features_extractor.extract_features(
         test_data,
